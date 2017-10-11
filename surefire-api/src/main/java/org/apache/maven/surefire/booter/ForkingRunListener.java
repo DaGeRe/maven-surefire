@@ -197,15 +197,38 @@ public class ForkingRunListener
         }
     }
 
+    private static final byte[] HEX_CHARS = {
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+    
     @Override
     public void writeTestOutput( byte[] buf, int off, int len, boolean stdout )
     {
         final byte[] header = stdout ? stdOutHeader : stdErrHeader;
-        final byte[] encodeBytes = escapeBytesToPrintable( header, buf, off, len );
 
         synchronized ( target ) // See notes about synchronization/thread safety in class javadoc
         {
-            target.write( encodeBytes, 0, encodeBytes.length );
+            target.write( header, 0, header.length );
+            final int end = off + len;
+            for ( int i = off; i < end; i++ )
+            {
+                final byte b = buf[i];
+
+                // handle non-nicely printable bytes
+                if ( b < 32 || b > 126 || b == '\\' || b == ',' )
+                {
+                    final int upper = ( 0xF0 & b ) >> 4;
+                    final int lower = ( 0x0F & b );
+
+                    target.write( new byte[]{'\\', HEX_CHARS[upper], HEX_CHARS[lower]}, 0, 3 );
+                }
+                else
+                {
+                    target.write( new byte[]{b}, 0, 1 );
+                }
+            }
+            target.write( (byte) '\n' );
+            
+//            target.write( encodeBytes, 0, encodeBytes.length );
             target.flush();
             if ( target.checkError() )
             {
