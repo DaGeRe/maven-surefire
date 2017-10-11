@@ -211,31 +211,38 @@ public class ForkingRunListener
             final int end = off + len;
             for ( int i = off; i < end; i++ )
             {
-                final byte b = buf[i];
+                int laststart = i;
+                byte b = buf[i];
 
+                while ( !( b < 32 || b > 126 || b == '\\' || b == ',' ) && i < end )
+                {
+                    i++;
+                    b = buf[i];
+                }
+                
                 // handle non-nicely printable bytes
                 if ( b < 32 || b > 126 || b == '\\' || b == ',' )
                 {
+                    target.write( buf, laststart, i - 1 - laststart);
                     final int upper = ( 0xF0 & b ) >> 4;
                     final int lower = ( 0x0F & b );
-
-                    target.write( new byte[]{'\\', HEX_CHARS[upper], HEX_CHARS[lower]}, 0, 3 );
+                    target.write( new byte[] { '\\', HEX_CHARS[upper], HEX_CHARS[lower] }, 0, 3 );
                 }
                 else
                 {
-                    target.write( new byte[]{b}, 0, 1 );
+                    target.write( buf, laststart, i-laststart );
                 }
             }
             target.write( (byte) '\n' );
-            
-//            target.write( encodeBytes, 0, encodeBytes.length );
+
+            // target.write( encodeBytes, 0, encodeBytes.length );
             target.flush();
             if ( target.checkError() )
             {
                 // We MUST NOT throw any exception from this method; otherwise we are in loop and CPU goes up:
                 // ForkingRunListener -> Exception -> JUnit Notifier and RunListener -> ForkingRunListener -> Exception
-                DumpErrorSingleton.getSingleton()
-                        .dumpStreamText( "Unexpected IOException with stream: " + new String( buf, off, len ) );
+                DumpErrorSingleton.getSingleton().dumpStreamText( "Unexpected IOException with stream: "
+                    + new String( buf, off, len ) );
             }
         }
     }
